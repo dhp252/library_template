@@ -27,6 +27,6 @@ NOTICE: many package names are "dhp", replace with your desired name.
 replace `__<variable_name>__` in `dhp/__init__.py` to your desired library information
 
 ### Add library to python path without installing
-`python setup.py develope` or `pip install --editable .`
+`python setup.py develop` or `pip install --editable .`
 
 
