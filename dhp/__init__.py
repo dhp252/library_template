@@ -92,6 +92,8 @@ def find(string, module:object=None, alternatives=True,show=True,
         result = ordered_unique(result)
         return result
 
+    if module is not None and module.__package__ == __package__:
+        module = None
 
     if module is None:
         # if module is specified, search within this module
@@ -163,6 +165,42 @@ def find(string, module:object=None, alternatives=True,show=True,
 
     results = [x for y in filtered_symbols for x in memory if y in x]
     results = ordered_unique(results)
+
+    if module is None:
+        pkg_name = __package__
+    else:
+        pkg_name = module.__package__
+
+    def get_path(results):
+        paths = []
+        for res in results:
+
+            # handle cases contain '.' and without it in import path
+            if '.' in res:
+                submod, namespace = res.rsplit('.', 1)
+                code = f'from {pkg_name}.{submod} import {namespace} as temp'
+            else:
+                namespace = res
+                code = f'from {pkg_name} import {namespace} as temp'
+            try:
+                exec(code)
+                path = eval('temp.__module__')
+            except Exception as e:
+                path = None
+            paths.append(path)
+        return paths
+
+    paths = get_path(results)
+
+    def combine_n_beautify_results(results, paths):
+        max_length_first_part = 0 if len(results)==0 else max([len(i) for i in results])
+        results = [f"{i:<{max_length_first_part}}" for i in results]
+        sep   = " ==> "
+        results = [f"{res}{sep}{path}" for res, path in zip(results, paths) if path is not None]
+        return results
+
+    results = combine_n_beautify_results(results, paths)
+
     if show:
         for result in results:
             print(result)
