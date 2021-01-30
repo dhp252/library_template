@@ -42,7 +42,7 @@ def print_all_modules():
 
 
 def find(string, module:object=None, alternatives=True,show=True,
-         full=False, caseSensity=False) -> list :
+         full=False, caseSensity=False, filter_none_path=True) -> list :
     """
     examples:
     >>> import cv2
@@ -106,6 +106,8 @@ def find(string, module:object=None, alternatives=True,show=True,
     else:
         # or search specified module. Remember, pass "module" as obj, not name.
         memory = dir(module)
+        # filter_none_path is not guarantee to give full results from other libs
+        filter_none_path = False
 
     if not full:
         # remove objects starts with "__", like "__init__"
@@ -113,7 +115,7 @@ def find(string, module:object=None, alternatives=True,show=True,
 
     COMMON_ALT = [
         # VERBS
-        ['show','plot','print','display','visualize'],
+        ['show','plot','print','display','visualize','vis'],
         ['find','search','get'],
         ['extract','get'],
         ['group','combine','merge'],
@@ -152,7 +154,6 @@ def find(string, module:object=None, alternatives=True,show=True,
                                  list_to_search = functions,
                                  alternatives   = alternatives,
                                  caseSensity    = caseSensity)
-
     IGNORE_SYMBOLS = [
         'os', 'cv2', 'np', 'numpy', 'matplotlib', 'plt', 'PIL', 'Image', 'math',
         'importlib','pkgutil','functools','random','base64','warnings','tf',
@@ -164,15 +165,17 @@ def find(string, module:object=None, alternatives=True,show=True,
                      if symbol not in IGNORE_SYMBOLS]
 
     results = [x for y in filtered_symbols for x in memory if y in x]
-    results = ordered_unique(results)
 
+    results = ordered_unique(results)
+    # [line.strip() for line in np.unique.__doc__.split('\n')[:5] if line!=''][0]
     if module is None:
         pkg_name = __package__
     else:
         pkg_name = module.__package__
 
-    def get_path(results):
+    def get_path_docs(results):
         paths = []
+        docs = []
         for res in results:
 
             # handle cases contain '.' and without it in import path
@@ -185,21 +188,34 @@ def find(string, module:object=None, alternatives=True,show=True,
             try:
                 exec(code)
                 path = eval('temp.__module__')
+                doc = eval('temp.__doc__')
+                doc = [line.strip() for line in doc.split('\n')[:5] if line!=''][0]
+                doc = doc if doc != '' else ' '
             except Exception as e:
                 path = None
+                doc = ' '
             paths.append(path)
-        return paths
+            docs.append(doc)
+        return paths, docs
 
-    paths = get_path(results)
+    paths, docs = get_path_docs(results)
 
-    def combine_n_beautify_results(results, paths):
-        max_length_first_part = 0 if len(results)==0 else max([len(i) for i in results])
+    def combine_n_beautify_results(results, paths, docs, filter_none_path):
+        max_length_first_part = 0 if len(results)==0 else max(len(i) for i in results)
         results = [f"{i:<{max_length_first_part}}" for i in results]
-        sep   = " ==> "
-        results = [f"{res}{sep}{path}" for res, path in zip(results, paths) if path is not None]
-        return results
+        sep = " ==> "
+        pad = ' ' * 4
+        cnt = 0
+        results_str = []
+        for res, path, doc in zip(results, paths, docs):
+            if not filter_none_path or path is not None:
+                if len(doc) > 80:
+                    doc = doc[:76] + ' ...'
+                results_str.append(f"#{cnt:<2} {res}{sep}{path}\n"+ pad + doc)
+                cnt += 1
+        return results_str
 
-    results = combine_n_beautify_results(results, paths)
+    results = combine_n_beautify_results(results, paths, docs, filter_none_path)
 
     if show:
         for result in results:
