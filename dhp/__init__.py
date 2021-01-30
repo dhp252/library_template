@@ -43,13 +43,25 @@ def print_all_modules():
 
 def find(string, module:object=None, alternatives=True,show=True,
          full=False, caseSensity=False, filter_none_path=True) -> list :
-    """
+    """Supportive function to find function by name
+    
     examples:
     >>> import cv2
     >>> find('sift',cv2)
-    ['xfeatures2d_SIFT']
+    #0  SIFT        ==> cv2
+    #1  SIFT_create
+        SIFT_create([, nfeatures[, nOctaveLayers[, contrastThreshold[, edgeThres ...
     >>> find('hist') # search within this module
-    ['equalize_hist_color', 'plot_color_hist', 'visualize_model_history']
+    #0  computer_vision.equalize_hist_color      ==> dhp.computer_vision.processing.cvt_color
+    #1  computer_vision.plot_color_hist          ==> dhp.computer_vision.utils.desc_img
+    #2  deep_learning.visualize_tf_model_history ==> dhp.deep_learning.tf.show
+        visualize history object from tf model
+    >>> from matplotlib import pyplot as plt
+    >>> find('hist', plt)
+    #0  hist   ==> matplotlib.pyplot
+        Plot a histogram.
+    #1  hist2d ==> matplotlib.pyplot
+        Make a 2D histogram plot.
     """
 
     def ordered_unique(seq:iter) -> list :
@@ -103,11 +115,13 @@ def find(string, module:object=None, alternatives=True,show=True,
             pkg_name = _module.__name__.split('.')[0]
             local_in_module = [f'{pkg_name}.{mod}' for mod in dir(_module)]
             memory += local_in_module
+        module_name = __package__
     else:
         # or search specified module. Remember, pass "module" as obj, not name.
         memory = dir(module)
         # filter_none_path is not guarantee to give full results from other libs
         filter_none_path = False
+        module_name = module.__name__
 
     if not full:
         # remove objects starts with "__", like "__init__"
@@ -167,13 +181,15 @@ def find(string, module:object=None, alternatives=True,show=True,
     results = [x for y in filtered_symbols for x in memory if y in x]
 
     results = ordered_unique(results)
-    # [line.strip() for line in np.unique.__doc__.split('\n')[:5] if line!=''][0]
+
     if module is None:
         pkg_name = __package__
     else:
         pkg_name = module.__package__
 
     def get_path_docs(results):
+        nonlocal module_name
+
         paths = []
         docs = []
         for res in results:
@@ -181,19 +197,31 @@ def find(string, module:object=None, alternatives=True,show=True,
             # handle cases contain '.' and without it in import path
             if '.' in res:
                 submod, namespace = res.rsplit('.', 1)
-                code = f'from {pkg_name}.{submod} import {namespace} as temp'
+                code = f'from {module_name}.{submod} import {namespace} as temp'
             else:
                 namespace = res
-                code = f'from {pkg_name} import {namespace} as temp'
+                code = f'from {module_name} import {namespace} as temp'
+
             try:
                 exec(code)
+            except ImportError:
+                print(namespace, 'cannot be imported')
+                continue
+
+            try :
                 path = eval('temp.__module__')
-                doc = eval('temp.__doc__')
-                doc = [line.strip() for line in doc.split('\n')[:5] if line!=''][0]
-                doc = doc if doc != '' else ' '
-            except Exception as e:
+            except AttributeError:
                 path = None
-                doc = ' '
+
+            try:
+                doc = eval('temp.__doc__')
+                doc = [line.strip()
+                       for line in doc.split('\n')[:5] if line!=''][0]
+            except AttributeError:
+                # AttributeError: 'NoneType' object has no attribute 'split'
+                # AttributeError: '...' object has no attribute '__module__'
+                doc = ''
+
             paths.append(path)
             docs.append(doc)
         return paths, docs
@@ -209,9 +237,15 @@ def find(string, module:object=None, alternatives=True,show=True,
         results_str = []
         for res, path, doc in zip(results, paths, docs):
             if not filter_none_path or path is not None:
-                if len(doc) > 80:
-                    doc = doc[:76] + ' ...'
-                results_str.append(f"#{cnt:<2} {res}{sep}{path}\n"+ pad + doc)
+                if doc == '':
+                    pass
+                elif len(doc) <= 80:
+                    doc =  "\n"+ pad + doc
+                else:
+                    doc = "\n"+ pad + doc[:72] + ' ...'
+
+                path = sep + path if path is not None else ''
+                results_str.append(f"#{cnt:<2} {res}" + path + doc)
                 cnt += 1
         return results_str
 
