@@ -78,7 +78,7 @@ def find(string, module:object=None, alternatives=True,show=True,
 
         else:
             if alternatives is None:
-                result = list(filter(lambda s: string in s.lower(), list_to_search))
+                result = list(filter(lambda s: string.lower() in s.lower(), list_to_search))
 
             else:
                 # get alt lists that contains string
@@ -87,7 +87,7 @@ def find(string, module:object=None, alternatives=True,show=True,
                 alts = [string] + [item for items in alts for item in items]
                 alts = ordered_unique(alts)
                 for alt in alts:
-                    result += list(filter(lambda s: alt in s.lower(), list_to_search))
+                    result += list(filter(lambda s: alt.lower() in s.lower(), list_to_search))
 
         result = ordered_unique(result)
         return result
